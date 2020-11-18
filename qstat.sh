@@ -1,13 +1,13 @@
 #!/bin/bash
 
-regex="<JB_job_number>(.*?)</JB_job_number>"
-current_jobs=$(qstat -xml | grep -oP $regex)
-completed_jobs=$(diff <(cat ~/.slackbotjobs) <(echo $current_jobs) | grep '^<' | grep JB_job_number | egrep -o "[0-9]" | tr -d "\n")
-for j in $(echo $completed_jobs | fold -w7)
-do
-	curl -X POST "https://slack.com/api/chat.postMessage" \
-	-H  "accept: application/json" \
-	-H "Authorization: Bearer $(cat ~/.slacktoken)" \
-	-d channel=$(cat ~/.slackuserid) -d text="Job $j completed!"
+current_jobs=$(qstat -xml | grep JB_job_number | grep -Eo "[0-9]*")
+last_jobs=$(cat ~/.slackbotjobs)
+endpoint=$(cat ~/.slackhook)
+for j in $last_jobs; do
+	echo $current_jobs | grep $j >/dev/null
+	if [ $? != 0 ]; then # job in last_jobs but not current_jobs; must've finished!
+		curl -X POST --data-urlencode "payload={\"username\": \"CUBIC\", \"text\": \"Job $j completed\", \"icon_emoji\": \":ghost:\"}" $endpoint
+	fi
 done
-echo $current_jobs > ~/.slackbotjobs
+printf "" >~/.slackbotjobs
+for j in $current_jobs; do echo $j >>~/.slackbotjobs; done
